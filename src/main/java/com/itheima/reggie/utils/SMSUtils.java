@@ -30,7 +30,7 @@ public class SMSUtils {
 			//邮件发送者，必须和配置文件里的一样，不然授权码匹配不上
 			helper.setFrom("2715309233@qq.com");
 			mailSender.send(mimeMessage);
-			System.out.println("邮件发送成功！"+(count+1));
+			// System.out.println("邮件发送成功！"+(count+1));
 		}
 	}
 

@@ -9,6 +9,7 @@ import com.itheima.reggie.utils.SMSUtils;
 import com.itheima.reggie.utils.ValidateCodeUtils;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,6 +21,7 @@ import javax.mail.MessagingException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * <p>
@@ -38,6 +40,9 @@ public class UserController {
     @Autowired
     private UserService userService;
 
+    @Autowired
+    private RedisTemplate  redisTemplate;
+
     /**
      * 用户登录验证码
      * @param user
@@ -48,8 +53,10 @@ public class UserController {
     public R<String> sendMsg(@RequestBody User user, HttpSession session){
         String email = user.getEmail();
         String code = ValidateCodeUtils.generateValidateCode4String(4);
-        log.info(code);
-        session.setAttribute("code",code);
+        // log.info(code);
+        // session.setAttribute("code",code);
+        // 将验证码存入redis中
+        redisTemplate.opsForValue().set(email, code, 5, TimeUnit.MINUTES);
         try {
             SMSUtils.contextLoads(mailSender,email,code);
         } catch (MessagingException e) {
@@ -67,11 +74,13 @@ public class UserController {
     @PostMapping("/login")
     public R<User> login(@RequestBody Map<String, String> map, HttpSession session){
         String avatar = map.get("code");
-        String code =(String) session.getAttribute("code");
+        String email = map.get("email");
+        // String code =(String) session.getAttribute("code");
+        // 从redis中取出验证码
+        String code = (String) redisTemplate.opsForValue().get(email);
         if(!avatar.equals(code)){
             return R.error("验证码不正确");
         }
-        String email = map.get("email");
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("email",email);
         User user = userService.getOne(queryWrapper);
@@ -84,6 +93,8 @@ public class UserController {
             return R.success(newUser);
         }
         session.setAttribute("user",user);
+        // 登录成功删除验证码
+        redisTemplate.delete(email);
         return R.success(user);
     }
 
